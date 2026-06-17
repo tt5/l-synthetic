@@ -107,9 +107,9 @@ class Image:
                         break
 
                     length = random.randint(1, max(1, int(max(max(ny, IMG_SIZE - ny), max(nx, IMG_SIZE - nx)))))
+                    thickness = self.thickness
                     slope = random.randint(1, max(1, length // thickness + 1)) / length
                     direction = random.randint(0, 7)
-                    thickness = self.thickness
 
                     newlength = 0
                     ty = y
@@ -210,9 +210,33 @@ class World:
 
     def get_random_image(self):
         num_lines = random.randint(1, 13)
-        thickness = random.randint(1, max(1, 13 // num_lines))
+        #thickness = random.randint(1, max(1, 13 // num_lines))
+        thickness = random.randint(2, max(2, 13 // num_lines))
         image = Image(num_lines, thickness, 1)
-        return postprocess(image.grid)
+        metadata = {
+            "num_lines": image.num_lines,
+            "thickness": image.thickness,
+            "lines": [],
+        }
+        for line in image.lines:
+            segments_meta = []
+            total_length = 0
+            for seg in line.segments:
+                segments_meta.append({
+                    "segment_id": seg.segment_id,
+                    "length": seg.length,
+                    "slope": seg.slope,
+                    "direction": seg.direction,
+                })
+                total_length += seg.length
+            line_meta = {
+                "line_id": line.line_id,
+                "num_segments": len(segments_meta),
+                "total_length": total_length,
+                "segments": segments_meta,
+            }
+            metadata["lines"].append(line_meta)
+        return postprocess(image.grid), metadata
 
 
 async def main():
@@ -223,13 +247,14 @@ async def main():
     frame = 0
     try:
         while True:
-            grid = world.get_random_image()
+            grid, metadata = world.get_random_image()
 
             message = {
                 "frame": frame,
                 "image": grid.tolist(),
                 "width": 28,
                 "height": 28,
+                "metadata": metadata,
             }
 
             await nc.publish(SUBJECT, json.dumps(message).encode())
