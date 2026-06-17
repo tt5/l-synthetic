@@ -2,6 +2,7 @@
 
 import random
 import numpy as np
+import imageio
 from skimage.measure import label
 from PIL import Image as PILImage, ImageFilter
 from scipy import ndimage
@@ -225,10 +226,13 @@ class World:
 
 def main():
     world = World()
-    new_random_image = world.get_random_image()
-    #print("\n---\n")
-    print(new_random_image.shape)
-    print(new_random_image)
+    writer = imageio.get_writer("output.mp4", fps=2, macro_block_size=1)
+    for i in range(100):
+        grid = world.get_random_image()
+        writer.append_data(grid)
+        print(f"Frame {i+1}/100")
+    writer.close()
+    print("Done. Video saved to output.mp4")
 
 
 if __name__ == "__main__":
