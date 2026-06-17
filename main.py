@@ -3,19 +3,15 @@
 
 Generate synthetic shape images with clean separation:
 1. Raw shapes (pure geometry)
-2. Parameters (thickness, length, orientation, variation)
-3. Postprocessing (centering, border, blur)
+2. Postprocessing (centering, border, blur)
 
 Usage:
-    uv run generate.py --num-shapes 10 --count 6000
+    uv run generate.py
 """
 
-import argparse
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 from pathlib import Path
-import random
-import math
 
 IMG_SIZE = 28
 BORDER = 1
@@ -25,65 +21,11 @@ BORDER = 1
 # Add shapes here: (name, function_that_returns_polygon_points)
 # Points should be normalized to roughly (-1, -1) to (1, 1)
 
-RAW_SHAPES = [
-    # Example: ("circle", lambda: [(math.cos(a), math.sin(a)) for a in [math.radians(i*18) for i in range(20)]]),
-]
+RAW_SHAPES = []
 
 
 # ═══════════════════════════════════════════════════════════════════
-# 2. PARAMETERS — Thickness, length, orientation, variation
-# Transforms raw shape points into final shape on canvas.
-# ═══════════════════════════════════════════════════════════════════
-
-def get_params(class_id, total_classes):
-    """Generate parameters for a given class.
-    
-    Returns dict with:
-        shape_idx: which base shape
-        size: scale factor (length)
-        thickness: line thickness
-        angle: rotation in degrees
-        variation: variant index
-    """
-    rng = random.Random(class_id * 9973)
-    return {
-        "shape_idx": class_id % len(RAW_SHAPES),
-        "size": rng.randint(4, 10),
-        "thickness": rng.randint(1, 3),
-        "angle": rng.uniform(0, 360),
-        "variation": class_id // len(RAW_SHAPES),
-    }
-
-
-def apply_params(draw, params, cx, cy):
-    """Draw a shape with given parameters at position (cx, cy)."""
-    shape_name, shape_fn = RAW_SHAPES[params["shape_idx"]]
-    raw_pts = shape_fn()
-    
-    # Scale by size
-    size = params["size"]
-    pts = [(cx + p[0] * size, cy + p[1] * size) for p in raw_pts]
-    
-    # Apply rotation
-    angle = math.radians(params["angle"])
-    cos_a, sin_a = math.cos(angle), math.sin(angle)
-    rotated = []
-    for px, py in pts:
-        dx, dy = px - cx, py - cy
-        rx = dx * cos_a - dy * sin_a + cx
-        ry = dx * sin_a + dy * cos_a + cy
-        rotated.append((rx, ry))
-    
-    # Draw filled polygon
-    if len(rotated) > 2:
-        draw.polygon(rotated, fill=255)
-    elif len(rotated) == 2:
-        draw.line(rotated, fill=255, width=params["thickness"])
-
-
-# ═══════════════════════════════════════════════════════════════════
-# 3. POSTPROCESSING — Centering, border, blur
-# Applied after shape is drawn.
+# POSTPROCESSING — Centering, border, blur
 # ═══════════════════════════════════════════════════════════════════
 
 def center_shape(arr):
@@ -111,7 +53,7 @@ def center_shape(arr):
 
 
 def add_border(arr):
-    """Add 2-pixel white border around image."""
+    """Add 1-pixel white border around image."""
     arr[:BORDER, :] = 0
     arr[-BORDER:, :] = 0
     arr[:, :BORDER] = 0
@@ -135,61 +77,23 @@ def postprocess(img):
 
 
 # ═══════════════════════════════════════════════════════════════════
-# IMAGE GENERATION — Combines shape + params + postprocessing
-# ═══════════════════════════════════════════════════════════════════
-
-def generate_image(class_id, total_classes, noise_level=5):
-    """Generate a single synthetic image for the given class."""
-    img = Image.new('L', (IMG_SIZE, IMG_SIZE), color=0)
-    draw = ImageDraw.Draw(img)
-    
-    params = get_params(class_id, total_classes)
-    cx, cy = IMG_SIZE // 2, IMG_SIZE // 2
-    
-    apply_params(draw, params, cx, cy)
-    
-    arr = postprocess(img)
-    
-    if noise_level > 0:
-        noise = np.random.normal(0, noise_level, arr.shape).astype(np.int16)
-        arr = np.clip(arr.astype(np.int16) + noise, 0, 255).astype(np.uint8)
-    
-    return arr
-
-
-# ═══════════════════════════════════════════════════════════════════
 # MAIN
 # ═══════════════════════════════════════════════════════════════════
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--output-dir", type=str, default="data")
-    parser.add_argument("--num-shapes", type=int, required=True)
-    parser.add_argument("--count", type=int, default=6000)
-    parser.add_argument("--noise", type=float, default=5)
-    args = parser.parse_args()
-    
-    output_dir = Path(args.output_dir)
+    output_dir = Path("data")
     output_dir.mkdir(parents=True, exist_ok=True)
-    
-    total = args.num_shapes * args.count
-    print(f"Generating {total} images ({args.num_shapes} classes × {args.count})...")
-    
-    images, labels = [], []
-    for class_id in range(args.num_shapes):
-        for _ in range(args.count):
-            images.append(generate_image(class_id, args.num_shapes, args.noise))
-            labels.append(class_id)
-        if (class_id + 1) % 10 == 0 or class_id == args.num_shapes - 1:
-            print(f"  Class {class_id + 1}/{args.num_shapes}")
-    
-    path = output_dir / f"synthetic-{args.num_shapes}classes.csv"
+
+    images = []
+    labels = []
+
+    path = output_dir / "synthetic.csv"
     print(f"Saving {path}...")
     with open(path, 'w') as f:
         for i in range(len(images)):
             line = f"{labels[i]}," + ",".join(str(p) for p in images[i].flatten())
             f.write(line + "\n")
-    print(f"Done. {len(images)} samples, {args.num_shapes} classes.")
+    print(f"Done. {len(images)} samples.")
 
 
 if __name__ == "__main__":
