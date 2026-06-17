@@ -1,12 +1,3 @@
-./nats-server -js
-nats req one hello2 --wait
-nats str ls
-
-./nats-server -js
-nats str add one --subjects "one" --defaults
-nats str info one -j | jq > one.config
-nats str add one --config one.config
-./nats-server -c server.config
 nats str add synthetic --subjects synthetic --defaults
 nats str info synthetic -j | jq > synthetic.config
 nats str rm synthetic
