@@ -1,99 +1,78 @@
 #!/usr/bin/env python3
 """generate.py
 
-Generate synthetic shape images with clean separation:
-1. Raw shapes (pure geometry)
-2. Postprocessing (centering, border, blur)
+Generate synthetic shape images using lines and segments.
 
 Usage:
     uv run generate.py
 """
 
-import numpy as np
-from PIL import Image, ImageDraw, ImageFilter
-from pathlib import Path
 
-IMG_SIZE = 28
-BORDER = 1
+class Segment:
+    """A single straight segment of a line.
+    
+    Attributes:
+        length: int — length of the segment in pixels
+        angle: int — angle in degrees (relative to previous segment)
+        line: Line — the line this segment belongs to
+    """
 
-
-# ─── Shape registry ────────────────────────────────────────────────
-# Add shapes here: (name, function_that_returns_polygon_points)
-# Points should be normalized to roughly (-1, -1) to (1, 1)
-
-RAW_SHAPES = []
-
-
-# ═══════════════════════════════════════════════════════════════════
-# POSTPROCESSING — Centering, border, blur
-# ═══════════════════════════════════════════════════════════════════
-
-def center_shape(arr):
-    """Center the shape within the image by bounding box."""
-    rows = np.any(arr > 0, axis=1)
-    cols = np.any(arr > 0, axis=0)
-    if not rows.any():
-        return arr
-    rmin, rmax = np.where(rows)[0][[0, -1]]
-    cmin, cmax = np.where(cols)[0][[0, -1]]
-    h = rmax - rmin + 1
-    w = cmax - cmin + 1
-    offset_y = (IMG_SIZE - h) // 2 - rmin
-    offset_x = (IMG_SIZE - w) // 2 - cmin
-    centered = np.zeros_like(arr)
-    sy1, sy2 = max(0, -offset_y), min(IMG_SIZE, IMG_SIZE - offset_y)
-    sx1, sx2 = max(0, -offset_x), min(IMG_SIZE, IMG_SIZE - offset_x)
-    dy1, dy2 = max(0, offset_y), min(IMG_SIZE, IMG_SIZE + offset_y)
-    dx1, dx2 = max(0, offset_x), min(IMG_SIZE, IMG_SIZE + offset_x)
-    h_copy = min(sy2 - sy1, dy2 - dy1)
-    w_copy = min(sx2 - sx1, dx2 - dx1)
-    if h_copy > 0 and w_copy > 0:
-        centered[dy1:dy1+h_copy, dx1:dx1+w_copy] = arr[sy1:sy1+h_copy, sx1:sx1+w_copy]
-    return centered
+    def __init__(self, length, angle, line):
+        self.length = length
+        self.angle = angle
+        self.line = line
 
 
-def add_border(arr):
-    """Add 1-pixel white border around image."""
-    arr[:BORDER, :] = 0
-    arr[-BORDER:, :] = 0
-    arr[:, :BORDER] = 0
-    arr[:, -BORDER:] = 0
-    return arr
+class Line:
+    """A line composed of connected segments.
+    
+    Attributes:
+        segments: list of Segment — segments making up this line
+        image: Image — the image this line belongs to
+        line_id: int — unique identifier for this line
+    """
+
+    def __init__(self, image, line_id):
+        self.segments = []
+        self.image = image
+        self.line_id = line_id
+
+    def add_segment(self, segment):
+        """Add a segment to this line.
+        
+        Returns:
+            bool — True if segment was added successfully, False otherwise
+        """
+        # TODO: Implement
+        pass
 
 
-def apply_blur(arr):
-    """Apply gaussian blur."""
-    img = Image.fromarray(arr)
-    img = img.filter(ImageFilter.GaussianBlur(radius=0.5))
-    return np.array(img)
+class Image:
+    """A 27x27 black/white image containing lines.
+    
+    Attributes:
+        num_lines: int — number of lines in this image
+        thickness: int — line thickness (same for all lines)
+        lines: list of Line — lines in this image
+    """
 
+    def __init__(self, num_lines, thickness):
+        self.num_lines = num_lines
+        self.thickness = thickness
+        self.lines = []
 
-def postprocess(img):
-    """Full postprocessing pipeline: center → border → blur."""
-    arr = center_shape(np.array(img))
-    arr = add_border(arr)
-    arr = apply_blur(arr)
-    return arr
+    def add_line(self, line):
+        """Add a line to this image.
+        
+        Does not apply composition algorithm — just adds the line.
+        """
+        # TODO: Implement
+        pass
 
-
-# ═══════════════════════════════════════════════════════════════════
-# MAIN
-# ═══════════════════════════════════════════════════════════════════
 
 def main():
-    output_dir = Path("data")
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    images = []
-    labels = []
-
-    path = output_dir / "synthetic.csv"
-    print(f"Saving {path}...")
-    with open(path, 'w') as f:
-        for i in range(len(images)):
-            line = f"{labels[i]}," + ",".join(str(p) for p in images[i].flatten())
-            f.write(line + "\n")
-    print(f"Done. {len(images)} samples.")
+    print("Synthetic pictogram generator")
+    print("TODO: Implement generation algorithm")
 
 
 if __name__ == "__main__":

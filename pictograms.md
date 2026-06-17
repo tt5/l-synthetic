@@ -17,6 +17,7 @@ An image has at least 1 line. Lines have segments.
 - 27x27, black/white
 - number of lines
 - every line is on its own layer
+- line thickness
 
 ## adding lines to image
 
