@@ -30,7 +30,7 @@ class Image:
         self.thickness = thickness
         self.image_id = image_id
         self.lines = [Line(line_id, image_id) for line_id in range(1, num_lines+1)]
-        self.grid = np.zeros((27,27), dtype=np.int32)
+        self.grid = np.zeros((26,26), dtype=np.int32)
         #print("num_lines ", num_lines)
         #print("thickness ", thickness)
 
@@ -45,8 +45,8 @@ class Image:
         oldgrid = np.copy(self.grid)
         for i in range(10):
             buffer = self.thickness - 1
-            y = random.randint(buffer, max(buffer+1, 27 - buffer - 1))
-            x = random.randint(buffer, max(buffer+1, 27 - buffer - 1))
+            y = random.randint(buffer, max(buffer+1, 26 - buffer - 1))
+            x = random.randint(buffer, max(buffer+1, 26 - buffer - 1))
             #print("startpos: (", y, x, ")")
 
             if self.grid[y, x] == 0:
@@ -190,6 +190,7 @@ def main():
     world = World()
     new_random_image = world.get_random_image()
     #print("\n---\n")
+    print(new_random_image.shape)
     print(new_random_image)
 
 
