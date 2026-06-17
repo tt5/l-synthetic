@@ -1,117 +1,195 @@
 #!/usr/bin/env python3
-"""generate_synthetic_1.py
+"""generate.py
 
-Generate 6000 synthetic images of the digit "1" in MNIST format.
-Outputs to data/synthetic-1-train.csv and data/synthetic-1-test.csv.
+Generate synthetic shape images with clean separation:
+1. Raw shapes (pure geometry)
+2. Parameters (thickness, length, orientation, variation)
+3. Postprocessing (centering, border, blur)
 
 Usage:
-    uv run generate_synthetic_1.py
+    uv run generate.py --num-shapes 10 --count 6000
 """
 
+import argparse
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter
 from pathlib import Path
 import random
-
-OUTPUT_DIR = Path(__file__).resolve().parent / "data"
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+import math
 
 IMG_SIZE = 28
-NUM_TRAIN = 5000
-NUM_TEST = 1000
+BORDER = 1
 
 
-def generate_one():
-    """Generate a single synthetic '1' image as 28x28 numpy array (0-255)."""
-    img = Image.new('L', (IMG_SIZE, IMG_SIZE), color=0)
-    draw = ImageDraw.Draw(img)
+# ─── Shape registry ────────────────────────────────────────────────
+# Add shapes here: (name, function_that_returns_polygon_points)
+# Points should be normalized to roughly (-1, -1) to (1, 1)
 
-    # Randomize parameters
-    center_x = IMG_SIZE // 2 + random.randint(-2, 2)
-    thickness = random.randint(1, 3)
-    top_y = random.randint(2, 6)
-    bottom_y = random.randint(22, 26)
-    angle = random.uniform(-8, 8)  # degrees
-    has_top_serif = random.random() < 0.3
-    has_bottom_serif = random.random() < 0.2
+RAW_SHAPES = [
+    # Example: ("circle", lambda: [(math.cos(a), math.sin(a)) for a in [math.radians(i*18) for i in range(20)]]),
+]
 
-    # Draw main vertical stroke
-    if thickness == 1:
-        draw.line([(center_x, top_y), (center_x, bottom_y)], fill=255, width=1)
-    else:
-        for offset in range(-(thickness // 2), thickness // 2 + 1):
-            draw.line([(center_x + offset, top_y), (center_x + offset, bottom_y)], fill=255, width=1)
 
-    # Optional top serif (small horizontal bar)
-    if has_top_serif:
-        serif_width = random.randint(2, 4)
-        draw.line([(center_x - serif_width, top_y), (center_x + serif_width, top_y)], fill=255, width=1)
+# ═══════════════════════════════════════════════════════════════════
+# 2. PARAMETERS — Thickness, length, orientation, variation
+# Transforms raw shape points into final shape on canvas.
+# ═══════════════════════════════════════════════════════════════════
 
-    # Optional bottom serif
-    if has_bottom_serif:
-        serif_width = random.randint(2, 4)
-        draw.line([(center_x - serif_width, bottom_y), (center_x + serif_width, bottom_y)], fill=255, width=1)
+def get_params(class_id, total_classes):
+    """Generate parameters for a given class.
+    
+    Returns dict with:
+        shape_idx: which base shape
+        size: scale factor (length)
+        thickness: line thickness
+        angle: rotation in degrees
+        variation: variant index
+    """
+    rng = random.Random(class_id * 9973)
+    return {
+        "shape_idx": class_id % len(RAW_SHAPES),
+        "size": rng.randint(4, 10),
+        "thickness": rng.randint(1, 3),
+        "angle": rng.uniform(0, 360),
+        "variation": class_id // len(RAW_SHAPES),
+    }
 
-    # Apply slight rotation
-    if abs(angle) > 1:
-        img = img.rotate(angle, resample=Image.BILINEAR, fillcolor=0)
 
-    # Convert to numpy array
-    arr = np.array(img, dtype=np.uint8)
+def apply_params(draw, params, cx, cy):
+    """Draw a shape with given parameters at position (cx, cy)."""
+    shape_name, shape_fn = RAW_SHAPES[params["shape_idx"]]
+    raw_pts = shape_fn()
+    
+    # Scale by size
+    size = params["size"]
+    pts = [(cx + p[0] * size, cy + p[1] * size) for p in raw_pts]
+    
+    # Apply rotation
+    angle = math.radians(params["angle"])
+    cos_a, sin_a = math.cos(angle), math.sin(angle)
+    rotated = []
+    for px, py in pts:
+        dx, dy = px - cx, py - cy
+        rx = dx * cos_a - dy * sin_a + cx
+        ry = dx * sin_a + dy * cos_a + cy
+        rotated.append((rx, ry))
+    
+    # Draw filled polygon
+    if len(rotated) > 2:
+        draw.polygon(rotated, fill=255)
+    elif len(rotated) == 2:
+        draw.line(rotated, fill=255, width=params["thickness"])
 
-    # Add slight Gaussian noise
-    noise = np.random.normal(0, 5, arr.shape).astype(np.int16)
-    arr = np.clip(arr.astype(np.int16) + noise, 0, 255).astype(np.uint8)
 
+# ═══════════════════════════════════════════════════════════════════
+# 3. POSTPROCESSING — Centering, border, blur
+# Applied after shape is drawn.
+# ═══════════════════════════════════════════════════════════════════
+
+def center_shape(arr):
+    """Center the shape within the image by bounding box."""
+    rows = np.any(arr > 0, axis=1)
+    cols = np.any(arr > 0, axis=0)
+    if not rows.any():
+        return arr
+    rmin, rmax = np.where(rows)[0][[0, -1]]
+    cmin, cmax = np.where(cols)[0][[0, -1]]
+    h = rmax - rmin + 1
+    w = cmax - cmin + 1
+    offset_y = (IMG_SIZE - h) // 2 - rmin
+    offset_x = (IMG_SIZE - w) // 2 - cmin
+    centered = np.zeros_like(arr)
+    sy1, sy2 = max(0, -offset_y), min(IMG_SIZE, IMG_SIZE - offset_y)
+    sx1, sx2 = max(0, -offset_x), min(IMG_SIZE, IMG_SIZE - offset_x)
+    dy1, dy2 = max(0, offset_y), min(IMG_SIZE, IMG_SIZE + offset_y)
+    dx1, dx2 = max(0, offset_x), min(IMG_SIZE, IMG_SIZE + offset_x)
+    h_copy = min(sy2 - sy1, dy2 - dy1)
+    w_copy = min(sx2 - sx1, dx2 - dx1)
+    if h_copy > 0 and w_copy > 0:
+        centered[dy1:dy1+h_copy, dx1:dx1+w_copy] = arr[sy1:sy1+h_copy, sx1:sx1+w_copy]
+    return centered
+
+
+def add_border(arr):
+    """Add 2-pixel white border around image."""
+    arr[:BORDER, :] = 0
+    arr[-BORDER:, :] = 0
+    arr[:, :BORDER] = 0
+    arr[:, -BORDER:] = 0
     return arr
 
 
-def generate_dataset(num_samples):
-    """Generate a dataset of synthetic '1' images."""
-    images = np.zeros((num_samples, IMG_SIZE, IMG_SIZE), dtype=np.uint8)
-    for i in range(num_samples):
-        images[i] = generate_one()
-        if (i + 1) % 1000 == 0:
-            print(f"  Generated {i + 1}/{num_samples}")
-    return images
+def apply_blur(arr):
+    """Apply gaussian blur."""
+    img = Image.fromarray(arr)
+    img = img.filter(ImageFilter.GaussianBlur(radius=0.5))
+    return np.array(img)
 
 
-def save_csv(images, labels, path):
-    """Save images and labels to CSV file."""
+def postprocess(img):
+    """Full postprocessing pipeline: center → border → blur."""
+    arr = center_shape(np.array(img))
+    arr = add_border(arr)
+    arr = apply_blur(arr)
+    return arr
+
+
+# ═══════════════════════════════════════════════════════════════════
+# IMAGE GENERATION — Combines shape + params + postprocessing
+# ═══════════════════════════════════════════════════════════════════
+
+def generate_image(class_id, total_classes, noise_level=5):
+    """Generate a single synthetic image for the given class."""
+    img = Image.new('L', (IMG_SIZE, IMG_SIZE), color=0)
+    draw = ImageDraw.Draw(img)
+    
+    params = get_params(class_id, total_classes)
+    cx, cy = IMG_SIZE // 2, IMG_SIZE // 2
+    
+    apply_params(draw, params, cx, cy)
+    
+    arr = postprocess(img)
+    
+    if noise_level > 0:
+        noise = np.random.normal(0, noise_level, arr.shape).astype(np.int16)
+        arr = np.clip(arr.astype(np.int16) + noise, 0, 255).astype(np.uint8)
+    
+    return arr
+
+
+# ═══════════════════════════════════════════════════════════════════
+# MAIN
+# ═══════════════════════════════════════════════════════════════════
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--output-dir", type=str, default="data")
+    parser.add_argument("--num-shapes", type=int, required=True)
+    parser.add_argument("--count", type=int, default=6000)
+    parser.add_argument("--noise", type=float, default=5)
+    args = parser.parse_args()
+    
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    total = args.num_shapes * args.count
+    print(f"Generating {total} images ({args.num_shapes} classes × {args.count})...")
+    
+    images, labels = [], []
+    for class_id in range(args.num_shapes):
+        for _ in range(args.count):
+            images.append(generate_image(class_id, args.num_shapes, args.noise))
+            labels.append(class_id)
+        if (class_id + 1) % 10 == 0 or class_id == args.num_shapes - 1:
+            print(f"  Class {class_id + 1}/{args.num_shapes}")
+    
+    path = output_dir / f"synthetic-{args.num_shapes}classes.csv"
     print(f"Saving {path}...")
     with open(path, 'w') as f:
         for i in range(len(images)):
-            label = labels[i]
-            pixels = images[i].flatten()
-            line = f"{label}," + ",".join(str(p) for p in pixels)
+            line = f"{labels[i]}," + ",".join(str(p) for p in images[i].flatten())
             f.write(line + "\n")
-    print(f"  Saved {len(images)} samples ({path.stat().st_size / 1024 / 1024:.1f} MB)")
-
-
-def main():
-    print(f"Generating synthetic '1' images...")
-    print(f"  Train: {NUM_TRAIN}, Test: {NUM_TEST}")
-
-    random.seed(42)
-    np.random.seed(42)
-
-    print("\nGenerating train set...")
-    train_images = generate_dataset(NUM_TRAIN)
-    train_labels = np.full(NUM_TRAIN, 1, dtype=np.int64)
-
-    print("\nGenerating test set...")
-    test_images = generate_dataset(NUM_TEST)
-    test_labels = np.full(NUM_TEST, 1, dtype=np.int64)
-
-    print(f"\nPixel stats (train):")
-    print(f"  Min: {train_images.min()}, Max: {train_images.max()}, Mean: {train_images.mean():.1f}")
-
-    save_csv(train_images, train_labels, OUTPUT_DIR / "synthetic-1-train.csv")
-    save_csv(test_images, test_labels, OUTPUT_DIR / "synthetic-1-test.csv")
-
-    print(f"\nDone. Output files:")
-    for f in OUTPUT_DIR.glob("synthetic-1-*.csv"):
-        print(f"  {f}")
+    print(f"Done. {len(images)} samples, {args.num_shapes} classes.")
 
 
 if __name__ == "__main__":
