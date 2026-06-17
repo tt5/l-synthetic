@@ -218,8 +218,9 @@ class World:
         pass
 
     def get_random_image(self):
-        num_lines = random.randint(0, 13) + 1
-        thickness = random.randint(0, 13 // num_lines) + 1
+        num_lines = random.randint(1, 13)
+        #num_lines = random.randint(
+        thickness = random.randint(2, max(2, 13 // num_lines))
         image = Image(num_lines, thickness, 1)
         return postprocess(image.grid)
 
