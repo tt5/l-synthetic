@@ -3,7 +3,44 @@
 import random
 import numpy as np
 from skimage.measure import label
+from PIL import Image as PILImage, ImageFilter
 from scipy import ndimage
+
+
+def postprocess(grid):
+    arr = np.array(grid, dtype=np.uint8) * 255
+
+    rows = np.any(arr > 0, axis=1)
+    cols = np.any(arr > 0, axis=0)
+    if rows.any() and cols.any():
+        rmin, rmax = np.where(rows)[0][[0, -1]]
+        cmin, cmax = np.where(cols)[0][[0, -1]]
+        h = rmax - rmin + 1
+        w = cmax - cmin + 1
+        offset_y = (28 - h) // 2 - rmin
+        offset_x = (28 - w) // 2 - cmin
+        centered = np.zeros((28, 28), dtype=np.uint8)
+        sy1, sy2 = max(0, -offset_y), min(26, 26 - offset_y)
+        sx1, sx2 = max(0, -offset_x), min(26, 26 - offset_x)
+        dy1, dy2 = max(0, offset_y), min(28, 28 + offset_y)
+        dx1, dx2 = max(0, offset_x), min(28, 28 + offset_x)
+        h_copy = min(sy2 - sy1, dy2 - dy1)
+        w_copy = min(sx2 - sx1, dx2 - dx1)
+        if h_copy > 0 and w_copy > 0:
+            centered[dy1:dy1+h_copy, dx1:dx1+w_copy] = arr[sy1:sy1+h_copy, sx1:sx1+w_copy]
+    else:
+        centered = np.zeros((28, 28), dtype=np.uint8)
+
+    pil_img = PILImage.fromarray(centered)
+    pil_img = pil_img.filter(ImageFilter.GaussianBlur(radius=0.5))
+    arr = np.array(pil_img)
+
+    arr[:1, :] = 0
+    arr[-1:, :] = 0
+    arr[:, :1] = 0
+    arr[:, -1:] = 0
+
+    return arr
 
 class Segment:
     def __init__(self, segment_id, length, slope, direction, line_id):
@@ -183,7 +220,7 @@ class World:
         num_lines = random.randint(0, 13) + 1
         thickness = random.randint(0, 13 // num_lines) + 1
         image = Image(num_lines, thickness, 1)
-        return image.grid
+        return postprocess(image.grid)
 
 
 def main():
