@@ -23,25 +23,24 @@ def classify(metadata):
     num_lines = metadata["num_lines"]
     thickness = metadata["thickness"]
     lines = metadata["lines"]
-    total_length = sum(l["total_length"] for l in lines)
+    total_length = sum(l["total_length"] for l in lines) # length in steps
+    max_length = max(l["total_length"] for l in lines)
     total_segments = sum(l["num_segments"] for l in lines)
+    centered = metadata["centered"]
     
     # Class 0: centered dot
-    if num_lines == 1 and total_segments < 2 and total_length//thickness <= 3:
+    if centered and num_lines == 1 and max_length <= 2:
         return 0
     
-    # Class 1: 2+ not centered dots (multiple short segments)
-    if num_lines >= 2 and all(
-        l["num_segments"] == 1 and l["segments"][0]["length"] <= thickness * 2
-        for l in lines
-    ):
+    # Class 1: 2 or more dots
+    if num_lines > 1 and max_length <= 2:
         return 1
     
     # Class 2: one line (1 line, any segments)
     if num_lines == 1:
         return 2
     
-    # Class 3: one line + dots (2+ lines, one is long, others are short)
+    # Class 3: 
     if num_lines >= 2:
         long_lines = [l for l in lines if l["total_length"] > thickness * 3]
         short_lines = [l for l in lines if l["total_length"] <= thickness * 3]

@@ -33,6 +33,7 @@ def postprocess(grid):
         cmin, cmax = np.where(cols)[0][[0, -1]]
         h = rmax - rmin + 1
         w = cmax - cmin + 1
+        is_full_image = (rmin == 0 and rmax == IMG_SIZE - 1 and cmin == 0 and cmax == IMG_SIZE - 1)
         offset_y = (28 - h) // 2 - rmin
         offset_x = (28 - w) // 2 - cmin
         centered = np.zeros((28, 28), dtype=np.uint8)
@@ -46,6 +47,7 @@ def postprocess(grid):
             centered[dy1:dy1+h_copy, dx1:dx1+w_copy] = arr[sy1:sy1+h_copy, sx1:sx1+w_copy]
     else:
         centered = np.zeros((28, 28), dtype=np.uint8)
+        is_full_image = False
 
     pil_img = PILImage.fromarray(centered)
     pil_img = pil_img.filter(ImageFilter.GaussianBlur(radius=0.5))
@@ -54,7 +56,7 @@ def postprocess(grid):
     arr[-BORDER:, :] = 0
     arr[:, :BORDER] = 0
     arr[:, -BORDER:] = 0
-    return arr
+    return arr, not is_full_image
 
 
 class Segment:
@@ -90,6 +92,8 @@ class Image:
     def add_line(self, line_id):
         temp_grid = np.zeros(self.grid.shape).astype(self.grid.dtype)
         oldgrid = np.copy(self.grid)
+        line = self.lines[line_id]
+        
         for i in range(10):
             buffer = self.thickness - 1
             y = random.randint(buffer, max(buffer + 1, IMG_SIZE - buffer - 1))
@@ -107,9 +111,9 @@ class Image:
                         break
 
                     length = random.randint(1, max(1, int(max(max(ny, IMG_SIZE - ny), max(nx, IMG_SIZE - nx)))))
-                    thickness = self.thickness
-                    slope = random.randint(1, max(1, length // thickness + 1)) / length
+                    slope = random.randint(1, max(1, length // self.thickness + 1)) / length
                     direction = random.randint(0, 7)
+                    seg_thickness = self.thickness
 
                     newlength = 0
                     ty = y
@@ -119,63 +123,67 @@ class Image:
                             break
                         if tx < 0 or tx > IMG_SIZE - 1:
                             break
-                        newlength += thickness // 2 + 1
+                        newlength += seg_thickness // 2 + 1
 
                         if direction == 0:
                             ty = ty + slope
-                            tx = tx + thickness // 2 + 1
+                            tx = tx + seg_thickness // 2 + 1
                         elif direction == 1:
-                            ty = ty - thickness // 2 + 1
+                            ty = ty - seg_thickness // 2 + 1
                             tx = tx + slope
                         elif direction == 2:
-                            ty = ty - thickness // 2 + 1
+                            ty = ty - seg_thickness // 2 + 1
                             tx = tx - slope
                         elif direction == 3:
                             ty = ty - slope
-                            tx = tx - thickness // 2 + 1
+                            tx = tx - seg_thickness // 2 + 1
                         elif direction == 4:
                             ty = ty + slope
-                            tx = tx - thickness // 2 + 1
+                            tx = tx - seg_thickness // 2 + 1
                         elif direction == 5:
-                            ty = ty + thickness // 2 + 1
+                            ty = ty + seg_thickness // 2 + 1
                             tx = tx - slope
                         elif direction == 6:
-                            ty = ty + thickness // 2 + 1
+                            ty = ty + seg_thickness // 2 + 1
                             tx = tx + slope
                         elif direction == 7:
                             ty = ty - slope
-                            tx = tx + thickness // 2 + 1
+                            tx = tx + seg_thickness // 2 + 1
 
                     length = newlength
+
+                    # Create and store segment
+                    segment = Segment(segment_id, length, slope, direction, line_id)
+                    line.add_segment(segment)
 
                     for step in range(length):
                         if direction == 0:
                             ny = ny + slope
-                            nx = nx + thickness // 2 + 1
+                            nx = nx + seg_thickness // 2 + 1
                         elif direction == 1:
-                            ny = ny - thickness // 2 + 1
+                            ny = ny - seg_thickness // 2 + 1
                             nx = nx + slope
                         elif direction == 2:
-                            ny = ny - thickness // 2 + 1
+                            ny = ny - seg_thickness // 2 + 1
                             nx = nx - slope
                         elif direction == 3:
                             ny = ny - slope
-                            nx = nx - thickness // 2 + 1
+                            nx = nx - seg_thickness // 2 + 1
                         elif direction == 4:
                             ny = ny + slope
-                            nx = nx - thickness // 2 + 1
+                            nx = nx - seg_thickness // 2 + 1
                         elif direction == 5:
-                            ny = ny + thickness // 2 + 1
+                            ny = ny + seg_thickness // 2 + 1
                             nx = nx - slope
                         elif direction == 6:
-                            ny = ny + thickness // 2 + 1
+                            ny = ny + seg_thickness // 2 + 1
                             nx = nx + slope
                         elif direction == 7:
                             ny = ny - slope
-                            nx = nx + thickness // 2 + 1
+                            nx = nx + seg_thickness // 2 + 1
 
-                        dt = thickness // 2
-                        if slope < 1 and thickness < 1:
+                        dt = seg_thickness // 2
+                        if slope < 1 and seg_thickness < 1:
                             dt = 2
 
                         if np.any(temp_grid[int(ny):int(ny) + 1, int(nx):int(nx) + 1] == 1):
@@ -236,7 +244,9 @@ class World:
                 "segments": segments_meta,
             }
             metadata["lines"].append(line_meta)
-        return postprocess(image.grid), metadata
+        grid, centered = postprocess(image.grid)
+        metadata["centered"] = centered
+        return grid, metadata
 
 
 async def main():
