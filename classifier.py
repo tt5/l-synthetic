@@ -64,6 +64,18 @@ def classify(metadata, image):
             has_hole = True
             break  # Found a hole
 
+    # Label connected components of white pixels
+    binary = (image > 0).astype(int)
+    labeled, num_features = ndimage.label(binary)
+
+    # Calculate sizes of all white components
+    sizes = ndimage.sum(binary, labeled, range(1, num_features + 1))
+
+    # Check if any white component is "large" (e.g., > 20% of image)
+    image_size = image.shape[0] * image.shape[1]
+    large_threshold = image_size * 0.2
+    has_large_white_area = np.any(sizes > large_threshold)
+
 
     # Class 0: centered dot
     if num_points == 1 and num_straight_lines == 0:
@@ -93,10 +105,13 @@ def classify(metadata, image):
     if num_points <= 1 and num_straight_lines > 2:
         return 6
      
-    # Class 7: complex structure, very assymetric, no large white area
-    #
-    # Class 8: complex structure, large white area
-    #
+    # Class 7: complex structure, large white area
+    if has_large_white_area:
+        return 7
+
+    # Class 8: complex structure, very assymetric, no large white area
+     
+     
     # Class 9: complex structure, very regular, no large white area
 
 
