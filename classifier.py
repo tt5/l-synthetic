@@ -29,7 +29,8 @@ def classify(metadata):
     centered = metadata["centered"]
     
     # Class 0: centered dot
-    if centered and num_lines == 1 and max_length <= 2:
+    #if centered and num_lines == 1 and max_length <= 2:
+    if num_lines == 1:
         return 0
     
     # Class 1: 2 or more dots

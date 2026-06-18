@@ -19,40 +19,40 @@ NATS_URL = "nats://127.0.0.1:4222"
 SUBJECT = "two"
 FPS = 2
 IMG_SIZE = 28
-LABEL_WIDTH = 40
+INFO_HEIGHT = 60
+INFO_WIDTH = 70
 
 
-def draw_label(img_array, label):
-    """Draw label text next to the image. Returns combined image."""
+def draw_label(img_array, label, metadata):
+    """Draw label and metadata text next to the image. Returns combined image."""
     h, w = img_array.shape
-    
-    # Create combined image: label area + original image
-    combined = np.zeros((h, LABEL_WIDTH + w), dtype=np.uint8)
-    
-    # Draw label text on the left side
+    total_h = max(h, INFO_HEIGHT)
+    combined = np.zeros((total_h, INFO_WIDTH + w), dtype=np.uint8)
     pil_img = PILImage.fromarray(combined)
     draw = ImageDraw.Draw(pil_img)
-    
-    # Try to use a font, fall back to default
+
     try:
         font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 8)
     except:
         font = ImageFont.load_default()
-    
-    text = str(label)
-    # Center text vertically in the label area
-    bbox = draw.textbbox((0, 0), text, font=font)
-    text_h = bbox[3] - bbox[1]
-    text_w = bbox[2] - bbox[0]
-    y = (h - text_h) // 2
-    x = (LABEL_WIDTH - text_w) // 2
-    draw.text((x, y), text, fill=255, font=font)
-    
+
+    max_length = max((l["total_length"] for l in metadata["lines"]), default=0)
+
+    lines = [
+        f"label: {label}",
+        f"lines: {metadata['num_lines']}",
+        f"thick: {metadata['thickness']}",
+        f"center: {metadata['centered']}",
+        f"max_len: {max_length}",
+    ]
+
+    y = 2
+    for text in lines:
+        draw.text((2, y), text, fill=255, font=font)
+        y += 10
+
     combined = np.array(pil_img)
-    
-    # Copy original image to the right side
-    combined[:, LABEL_WIDTH:] = img_array
-    
+    combined[:h, INFO_WIDTH:] = img_array
     return combined
 
 
@@ -60,12 +60,13 @@ async def main():
     nc = await nats.connect(NATS_URL)
     print(f"Connected to {NATS_URL}, listening on '{SUBJECT}'")
 
-    total_width = LABEL_WIDTH + IMG_SIZE
+    total_width = INFO_WIDTH + IMG_SIZE
+    total_height = max(IMG_SIZE, INFO_HEIGHT)
     cmd = [
         "ffplay",
         "-f", "rawvideo",
         "-pixel_format", "gray",
-        "-video_size", f"{total_width}x{IMG_SIZE}",
+        "-video_size", f"{total_width}x{total_height}",
         "-framerate", str(FPS),
         "-",
     ]
@@ -81,7 +82,8 @@ async def main():
         label = data["label"]
         frame_count += 1
 
-        combined = draw_label(img, label)
+        metadata = data["metadata"]
+        combined = draw_label(img, label, metadata)
         proc.stdin.write(combined.tobytes())
         proc.stdin.flush()
 
