@@ -39,6 +39,26 @@ def classify(metadata, image):
         elif line["total_length"] <= 2:
             num_points += 1
 
+    binary = (image == 0).astype(int)
+    labeled, num_features = ndimage.label(binary)
+
+    has_hole = False
+    # Check if any black component doesn't touch the border
+    for i in range(1, num_features + 1):
+        component = labeled == i
+        if np.sum(component) < 9:
+            continue
+        touches_border = (
+            component[0, :].any() or
+            component[-1, :].any() or
+            component[:, 0].any() or
+            component[:, -1].any()
+        )
+        if not touches_border:
+            has_hole = True
+            break  # Found a hole
+
+
     # Class 0: centered dot
     if num_points == 1 and num_straight_lines == 0:
         return 0
@@ -55,17 +75,19 @@ def classify(metadata, image):
     if num_points > 0 and num_straight_lines == 1:
         return 3
 
-    #5. two lines, orthogonal, crossing and not crossing
+    #4. two lines, orthogonal, crossing and not crossing
+     
+    # Class 6: one hole/ring in the image
+    if has_hole:
+        return 5
+     
+    #6. more than 2 clear lines, not regular
     #
-    #6. one hole/ring in the image
+    #7. complex structure, very assymetric, no large white area
     #
-    #7. more than 2 clear lines, not regular
+    #8. complex structure, large white area
     #
-    #8. complex structure, very assymetric, no large white area
-    #
-    #9. complex structure, large white area
-    #
-    #10. complex structure, very regular, no large white area
+    #9. complex structure, very regular, no large white area
 
 
     return -1
