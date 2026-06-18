@@ -34,55 +34,39 @@ def classify(metadata, image):
     for line in lines:
         if line["total_length"] >= 3:
             slopes = [s["slope"] for s in line["segments"]]
-            if slopes and (max(slopes) - min(slopes)) < 1:
+            if slopes and abs(max(slopes) - min(slopes))//thickness < 2:
                 num_straight_lines += 1
         elif line["total_length"] <= 2:
             num_points += 1
 
-    # Hole detection: check if any background component doesn't touch border
-    binary = (image > 0).astype(int)
-    inverted = 1 - binary
-    labeled, num_features = ndimage.label(inverted)
-    has_hole = False
-    for i in range(1, num_features + 1):
-        component = labeled == i
-        touches_border = (
-            component[0, :].any() or
-            component[-1, :].any() or
-            component[:, 0].any() or
-            component[:, -1].any()
-        )
-        if not touches_border:
-            has_hole = True
-            break
-
     # Class 0: centered dot
-    if num_lines == 1 and max_length <= 2:
+    if num_points == 1 and num_straight_lines == 0:
         return 0
 
     # Class 1: 2 or more dots
-    if num_lines > 1 and max_length <= 2:
+    if num_points > 1 and num_straight_lines == 0:
         return 1
 
     # Class 2: one line
-    if num_lines == 1 and max_length > 2:
+    if num_points == 0 and num_straight_lines == 1:
         return 2
 
     # Class 3: one line and one or more dots
-    if num_lines > 1 and num_straight_lines == 1 and num_points > 0:
+    if num_points > 0 and num_straight_lines == 1:
         return 3
 
-    # Class 4: two lines
-    if num_lines == 2:
-        return 4
+    #5. two lines, orthogonal, crossing and not crossing
+    #
+    #6. one hole/ring in the image
+    #
+    #7. more than 2 clear lines, not regular
+    #
+    #8. complex structure, very assymetric, no large white area
+    #
+    #9. complex structure, large white area
+    #
+    #10. complex structure, very regular, no large white area
 
-    # Class 5: hole/ring
-    if has_hole:
-        return 5
-
-    # Class 6: 3+ straight lines
-    if num_straight_lines >= 3:
-        return 6
 
     return -1
 
@@ -95,7 +79,8 @@ async def main():
         data = json.loads(msg.data.decode())
         metadata = data["metadata"]
         
-        label = classify(metadata)
+        image = np.array(data["image"], dtype=np.uint8).reshape(data["height"], data["width"])
+        label = classify(metadata, image)
         
         output = {
             "frame": data["frame"],
