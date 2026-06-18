@@ -63,6 +63,7 @@ class Line:
     def __init__(self, line_id, image_id):
         self.line_id = line_id
         self.image_id = image_id
+        self.segments = []
 
 
 class Image:
@@ -139,6 +140,13 @@ class Image:
 
                     length = newlength
 
+                    line.segments.append({
+                        "segment_id": segment_id,
+                        "length": length,
+                        "slope": round(slope, 4),
+                        "direction": direction,
+                    })
+
                     for step in range(length):
                         if direction == 0:
                             ny = ny + slope
@@ -206,10 +214,13 @@ class World:
 
         lines_meta = []
         for line in image.lines:
-            line_meta = {
+            total_length = sum(s["length"] for s in line.segments)
+            lines_meta.append({
                 "line_id": line.line_id,
-            }
-            lines_meta.append(line_meta)
+                "num_segments": len(line.segments),
+                "total_length": total_length,
+                "segments": line.segments,
+            })
 
         assert len(lines_meta) == num_lines, f"Image generation failed: expected {num_lines} lines, got {len(lines_meta)}"
 
