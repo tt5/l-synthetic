@@ -59,23 +59,10 @@ def postprocess(grid):
     return arr, not is_full_image
 
 
-class Segment:
-    def __init__(self, segment_id, length, slope, direction, line_id):
-        self.segment_id = segment_id
-        self.length = length
-        self.slope = slope
-        self.direction = direction
-        self.line_id = line_id
-
-
 class Line:
     def __init__(self, line_id, image_id):
         self.line_id = line_id
         self.image_id = image_id
-        self.segments = []
-
-    def add_segment(self, segment):
-        pass
 
 
 class Image:
@@ -152,10 +139,6 @@ class Image:
 
                     length = newlength
 
-                    # Create and store segment
-                    segment = Segment(segment_id, length, slope, direction, line_id)
-                    line.add_segment(segment)
-
                     for step in range(length):
                         if direction == 0:
                             ny = ny + slope
@@ -218,34 +201,25 @@ class World:
 
     def get_random_image(self):
         num_lines = random.randint(1, 13)
-        #thickness = random.randint(1, max(1, 13 // num_lines))
         thickness = random.randint(2, max(2, 13 // num_lines))
         image = Image(num_lines, thickness, 1)
-        metadata = {
-            "num_lines": image.num_lines,
-            "thickness": image.thickness,
-            "lines": [],
-        }
+
+        lines_meta = []
         for line in image.lines:
-            segments_meta = []
-            total_length = 0
-            for seg in line.segments:
-                segments_meta.append({
-                    "segment_id": seg.segment_id,
-                    "length": seg.length,
-                    "slope": seg.slope,
-                    "direction": seg.direction,
-                })
-                total_length += seg.length
             line_meta = {
                 "line_id": line.line_id,
-                "num_segments": len(segments_meta),
-                "total_length": total_length,
-                "segments": segments_meta,
             }
-            metadata["lines"].append(line_meta)
+            lines_meta.append(line_meta)
+
+        assert len(lines_meta) == num_lines, f"Image generation failed: expected {num_lines} lines, got {len(lines_meta)}"
+
         grid, centered = postprocess(image.grid)
-        metadata["centered"] = centered
+        metadata = {
+            "num_lines": len(lines_meta),
+            "thickness": image.thickness,
+            "centered": centered,
+            "lines": lines_meta,
+        }
         return grid, metadata
 
 
