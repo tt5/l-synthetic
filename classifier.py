@@ -40,7 +40,7 @@ def classify(metadata, image):
             straight_lines_slopes_min.append(min(slopes))
             #print(max(slopes), min(slopes))
             slopes_max_diff = (max(slopes) - min(slopes))
-            if slopes and slopes_max_diff < 0.3:
+            if slopes and slopes_max_diff < 0.2:
                 num_straight_lines += 1
         elif line["total_length"] <= 2:
             num_points += 1
@@ -65,7 +65,7 @@ def classify(metadata, image):
             break  # Found a hole
 
     # Label connected components of white pixels
-    binary = (image > 0).astype(int)
+    binary = (image > 127).astype(int)
     labeled, num_features = ndimage.label(binary)
 
     # Calculate sizes of all white components
@@ -106,13 +106,16 @@ def classify(metadata, image):
         return 6
      
     # Class 7: complex structure, large white area
-    if has_large_white_area:
+    if num_points > 1 and has_large_white_area:
         return 7
 
-    # Class 8: complex structure, very assymetric, no large white area
+    # Class 8: complex structure, very regular, no large white area
+    if num_points == 0 and not has_large_white_area:
+        return 8
      
-     
-    # Class 9: complex structure, very regular, no large white area
+    # Class 9: complex structure, very assymetric, no large white area
+    if num_points > 1 and num_straight_lines > 2 and not has_large_white_area:
+        return 9
 
 
     return -1
