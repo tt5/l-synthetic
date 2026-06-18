@@ -140,13 +140,6 @@ class Image:
 
                     length = newlength
 
-                    line.segments.append({
-                        "segment_id": segment_id,
-                        "length": length,
-                        "slope": round(slope, 4),
-                        "direction": direction,
-                    })
-
                     for step in range(length):
                         if direction == 0:
                             ny = ny + slope
@@ -177,10 +170,23 @@ class Image:
                         if slope < 1 and seg_thickness < 1:
                             dt = 2
 
-                        if np.any(temp_grid[int(ny):int(ny) + 1, int(nx):int(nx) + 1] == 1):
+                        if ny < 0 or ny > 26 or nx < 0 or nx > 26 or  np.any(temp_grid[int(ny):int(ny) + 1, int(nx):int(nx) + 1] == 1):
+                            line.segments.append({
+                                "segment_id": segment_id,
+                                "length": step,
+                                "slope": slope,
+                                "direction": direction,
+                            })
                             max_length = max_length - step
                             break
 
+                        if step == length-1:
+                            line.segments.append({
+                                "segment_id": segment_id,
+                                "length": step,
+                                "slope": slope,
+                                "direction": direction,
+                            })
                         temp_grid[int(ny) - dt:int(ny) + dt + 1, int(nx) - dt:int(nx) + dt + 1] = 1
 
                     max_length = max_length - length

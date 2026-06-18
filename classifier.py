@@ -12,58 +12,78 @@ import asyncio
 import json
 import numpy as np
 import nats
+from scipy import ndimage
 
 NATS_URL = "nats://127.0.0.1:4222"
 SUBJECT_IN = "one"
 SUBJECT_OUT = "two"
 
 
-def classify(metadata):
-    """Classify image based on metadata. Returns class_id (0-9) or -1."""
+def classify(metadata, image):
+    """Classify image based on metadata and image pixels. Returns class_id (0-9) or -1."""
     num_lines = metadata["num_lines"]
     thickness = metadata["thickness"]
     lines = metadata["lines"]
-    total_length = sum(l["total_length"] for l in lines) # length in steps
-    max_length = max(l["total_length"] for l in lines)
-    total_segments = sum(l["num_segments"] for l in lines)
     centered = metadata["centered"]
-    
+
+    max_length = max((l["total_length"] for l in lines), default=0)
+    total_segments = sum(l["num_segments"] for l in lines)
+
+    num_straight_lines = 0
+    num_points = 0
+    for line in lines:
+        if line["total_length"] >= 3:
+            slopes = [s["slope"] for s in line["segments"]]
+            if slopes and (max(slopes) - min(slopes)) < 1:
+                num_straight_lines += 1
+        elif line["total_length"] <= 2:
+            num_points += 1
+
+    # Hole detection: check if any background component doesn't touch border
+    binary = (image > 0).astype(int)
+    inverted = 1 - binary
+    labeled, num_features = ndimage.label(inverted)
+    has_hole = False
+    for i in range(1, num_features + 1):
+        component = labeled == i
+        touches_border = (
+            component[0, :].any() or
+            component[-1, :].any() or
+            component[:, 0].any() or
+            component[:, -1].any()
+        )
+        if not touches_border:
+            has_hole = True
+            break
+
     # Class 0: centered dot
-    #if centered and num_lines == 1 and max_length <= 2:
-    if num_lines == 1:
+    if num_lines == 1 and max_length <= 2:
         return 0
-    
+
     # Class 1: 2 or more dots
     if num_lines > 1 and max_length <= 2:
         return 1
-    
-    # Class 2: one line (1 line, any segments)
-    if num_lines == 1:
+
+    # Class 2: one line
+    if num_lines == 1 and max_length > 2:
         return 2
-    
-    # Class 3: 
-    if num_lines >= 2:
-        long_lines = [l for l in lines if l["total_length"] > thickness * 3]
-        short_lines = [l for l in lines if l["total_length"] <= thickness * 3]
-        if len(long_lines) == 1 and len(short_lines) >= 1:
-            return 3
-    
-    # Class 4: two lines, orthogonal, crossing or not
+
+    # Class 3: one line and one or more dots
+    if num_lines > 1 and num_straight_lines == 1 and num_points > 0:
+        return 3
+
+    # Class 4: two lines
     if num_lines == 2:
         return 4
-    
-    # Class 5: ring/hole (1 line, many segments forming closed shape)
-    if num_lines == 1 and total_segments >= 4:
+
+    # Class 5: hole/ring
+    if has_hole:
         return 5
-    
-    # Class 6: 3+ lines, not regular
-    if num_lines >= 3:
+
+    # Class 6: 3+ straight lines
+    if num_straight_lines >= 3:
         return 6
-    
-    # Class 7-9: complex structures (placeholder)
-    if num_lines >= 4:
-        return 7
-    
+
     return -1
 
 

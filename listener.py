@@ -36,7 +36,24 @@ def draw_label(img_array, label, metadata):
     except:
         font = ImageFont.load_default()
 
+    lines_s_max = []
+    lines_s_min = []
     max_length = max((l["total_length"] for l in metadata["lines"]), default=0)
+    for line in metadata["lines"]:
+        s_max = []
+        s_min = []
+        for s in line["segments"]:
+            s_max.append(s["slope"])
+            s_min.append(s["slope"])
+        max_slope = max(s_max)
+        min_slope = min(s_min)
+        lines_s_max.append(max_slope)
+        lines_s_min.append(min_slope)
+
+    max_slope = max(lines_s_max)
+    min_slope = min(lines_s_min)
+
+        
 
     lines = [
         f"label: {label}",
@@ -44,6 +61,8 @@ def draw_label(img_array, label, metadata):
         f"thick: {metadata['thickness']}",
         f"center: {metadata['centered']}",
         f"max_len: {max_length}",
+        #f"max_slope: {max_slope}",
+        #f"min_slope: {min_slope}",
     ]
 
     y = 2
