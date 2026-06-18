@@ -31,10 +31,16 @@ def classify(metadata, image):
 
     num_straight_lines = 0
     num_points = 0
+    straight_lines_slopes_max = []
+    straight_lines_slopes_min = []
     for line in lines:
         if line["total_length"] >= 3:
             slopes = [s["slope"] for s in line["segments"]]
-            if slopes and abs(max(slopes) - min(slopes))//thickness < 2:
+            straight_lines_slopes_max.append(max(slopes))
+            straight_lines_slopes_min.append(min(slopes))
+            #print(max(slopes), min(slopes))
+            slopes_max_diff = (max(slopes) - min(slopes))
+            if slopes and slopes_max_diff < 0.3:
                 num_straight_lines += 1
         elif line["total_length"] <= 2:
             num_points += 1
@@ -76,18 +82,22 @@ def classify(metadata, image):
         return 3
 
     #4. two lines, orthogonal, crossing and not crossing
+    if num_straight_lines == 2 and (max(straight_lines_slopes_max) - min(straight_lines_slopes_min)) > 0.3:
+        return 4
      
     # Class 6: one hole/ring in the image
     if has_hole:
         return 5
      
-    #6. more than 2 clear lines, not regular
+    # Class 6. more than 2 clear lines
+    if num_points <= 1 and num_straight_lines > 2:
+        return 6
+     
+    # Class 7: complex structure, very assymetric, no large white area
     #
-    #7. complex structure, very assymetric, no large white area
+    # Class 8: complex structure, large white area
     #
-    #8. complex structure, large white area
-    #
-    #9. complex structure, very regular, no large white area
+    # Class 9: complex structure, very regular, no large white area
 
 
     return -1
