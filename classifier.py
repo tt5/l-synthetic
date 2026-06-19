@@ -90,11 +90,11 @@ def classify(metadata, image):
         return 2
 
     # Class 3: one line and one or more dots
-    if num_points > 0 and num_straight_lines == 1:
+    if num_points > 0 and num_straight_lines == 1 and (num_lines - num_points - num_straight_lines) <= 0:
         return 3
 
     #4. two lines, orthogonal, crossing and not crossing
-    if num_straight_lines == 2 and (max(straight_lines_slopes_max) - min(straight_lines_slopes_min)) > 0.3:
+    if num_straight_lines == 2 and (max(straight_lines_slopes_max) - min(straight_lines_slopes_min)) > 0.3 and (num_lines - num_points - num_straight_lines) <= 0:
         return 4
      
     # Class 6: one hole/ring in the image
