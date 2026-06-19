@@ -82,7 +82,7 @@ def classify(metadata, image):
         return 0
 
     # Class 1: 2 or more dots
-    if num_points > 1 and num_straight_lines == 0:
+    if num_points > 1 and num_straight_lines == 0  and (num_lines - num_points - num_straight_lines) <= 0:
         return 1
 
     # Class 2: one line
