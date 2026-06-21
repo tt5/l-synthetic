@@ -110,11 +110,11 @@ def classify(metadata, image):
         return 7
 
     # Class 8: complex structure, very assymetric, no large white area
-    if num_points > 3 and num_straight_lines == 0 and num_lines > 4 and not has_large_white_area:
+    if num_points > 3 and num_straight_lines == 0 and num_lines > 5 and not has_large_white_area:
         return 8
 
     # Class 9: complex structure, very regular, no large white area
-    if num_points <= 3 and num_straight_lines >= 3 and not has_large_white_area and (num_lines - num_points - num_straight_lines) <= 3:
+    if num_points <= 3 and num_straight_lines >= 3 and not has_large_white_area and (num_lines - num_points - num_straight_lines) <= 4:
         return 9
      
     return -1
