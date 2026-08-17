@@ -1,0 +1,51 @@
+nats str add synthetic --subjects synthetic --defaults
+nats str info synthetic -j | jq > synthetic.config
+nats str rm synthetic
+nats str add synthetic --config synthetic.config
+
+{
+    "num_lines": 3,
+    "thickness": 2,
+    "centered": true,
+    "lines": [
+        {
+            "line_id": 1,
+            "num_segments": 2,
+            "total_length": 15,
+            "segments": [
+                {"segment_id": 0, "length": 8, "slope": 0.25, "direction": 3},
+                {"segment_id": 1, "length": 7, "slope": 0.5, "direction": 5}
+            ]
+        },
+        {
+            "line_id": 2,
+            "num_segments": 1,
+            "total_length": 10,
+            "segments": [
+                {"segment_id": 0, "length": 10, "slope": 0.1, "direction": 0}
+            ]
+        },
+        {
+            "line_id": 3,
+            "num_segments": 3,
+            "total_length": 20,
+            "segments": [
+                {"segment_id": 0, "length": 6, "slope": 0.33, "direction": 1},
+                {"segment_id": 1, "length": 8, "slope": 0.125, "direction": 4},
+                {"segment_id": 2, "length": 6, "slope": 0.167, "direction": 7}
+            ]
+        }
+    ]
+}
+
+equal number of white, black pixels. Binary (monochrom).
+Or: Every class should have the same average brightness.
+
+$ uv run count_duplicates_class_0.py
+Files scanned : 20000
+Unreadable    : 0
+Unique images : 391
+Duplicate groups: 294
+Extra copies (duplicates): 19609
+Largest group size: 5686
+uv run dehash_class_0.py --data-dir data/class_0 --in-place

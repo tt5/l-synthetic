@@ -1,0 +1,20 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+data
+data_pbm
+test_data
+output.mp4
+nats-server
+
+.ipynb_checkpoints
+**/*.npy
+**/*.pbm
