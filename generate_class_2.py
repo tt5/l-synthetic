@@ -26,7 +26,7 @@ images already on disk, so every save is collision-free across runs.
 
 Usage:
     uv run generate_class_2.py [--count N] [--data-dir data] [--seed S]
-        [--min-components 2]
+        [--min-components 2] [--reject-holes 1]
 """
 
 import argparse
@@ -77,6 +77,24 @@ def is_two_line(arr, min_components=2):
     """
     n, junctions = shape_stats(arr)
     return n >= min_components or junctions >= 1
+
+
+def has_hole(arr):
+    """True if the image encloses a background region not touching the border.
+
+    Two crossing lines can close into a loop, leaving an interior hole.
+    Holes are a class-2-specific ambiguity (class 1 never has one), so
+    rejecting them pushes class 2 toward cleaner two-line shapes.
+    """
+    background = arr <= 127
+    labeled, n = ndimage.label(background)
+    if n <= 1:
+        return False
+    border_labels = set(labeled[0, :].tolist()) | set(labeled[-1, :].tolist()) \
+        | set(labeled[:, 0].tolist()) | set(labeled[:, -1].tolist())
+    border_labels.discard(0)
+    holes = [l for l in range(1, n + 1) if l not in border_labels]
+    return len(holes) > 0
 
 
 def build_image(num_lines=2, thickness=1):
@@ -137,9 +155,14 @@ def main():
                         help="Accept draws with at least this many connected "
                              "components OR at least one crossing junction "
                              "(default: 2)")
+    parser.add_argument("--reject-holes", type=int, default=1, choices=[0, 1],
+                        help="Reject images that enclose a background hole "
+                             "(crossings that close into a loop). Default 1 "
+                             "(reject). Set 0 to allow holes.")
     args = parser.parse_args()
 
     np.random.seed(args.seed)
+    reject_holes = bool(args.reject_holes)
 
     class_dir = os.path.join(args.data_dir, f"class_{CLASS_ID}")
     os.makedirs(class_dir, exist_ok=True)
@@ -154,6 +177,16 @@ def main():
     written = 0
     rejected = 0
     merged = 0
+    holed = 0
+
+    def accept(arr):
+        """Full acceptance test for a rendered draw."""
+        if not is_two_line(arr, args.min_components):
+            return "merged"
+        if reject_holes and has_hole(arr):
+            return "hole"
+        return "ok"
+
     while written < target_new:
         # draw num_lines=2 directly, then verify it classifies as class 2
         grid, metadata = build_image(num_lines=2, thickness=1)
@@ -166,11 +199,18 @@ def main():
             continue
         # accept only if the two lines are visually separable OR cross each
         # other; reject merged no-crossing blobs that look like class 1
-        if not is_two_line(arr, args.min_components):
+        verdict = accept(arr)
+        if verdict == "merged":
             merged += 1
             if merged % 500 == 0:
                 print(f"  {merged} merged draws rejected (no crossing, not "
                       f"separable), {written}/{target_new} written", flush=True)
+            continue
+        if verdict == "hole":
+            holed += 1
+            if holed % 500 == 0:
+                print(f"  {holed} hole draws rejected, "
+                      f"{written}/{target_new} written", flush=True)
             continue
 
         # enforce uniqueness at save time
@@ -183,7 +223,7 @@ def main():
             # regenerate the whole image on collision (fresh entropy)
             grid, metadata = build_image(num_lines=2, thickness=1)
             arr, metadata["centered"] = postprocess(grid)
-            if classify(metadata, arr) != CLASS_ID or not is_two_line(arr, args.min_components):
+            if classify(metadata, arr) != CLASS_ID or accept(arr) != "ok":
                 break
         seen.add(h)
         np.save(os.path.join(class_dir, f"{next_index + written:06d}.npy"), arr)
@@ -193,7 +233,8 @@ def main():
 
     print(f"Done. Wrote {written} new images to {class_dir} "
           f"(total {existing + written}).")
-    print(f"Rejected {rejected} non-class-2 draws, {merged} merged (not separable).")
+    print(f"Rejected {rejected} non-class-2 draws, {merged} merged "
+          f"(not separable), {holed} with holes.")
 
 
 if __name__ == "__main__":
