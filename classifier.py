@@ -20,14 +20,14 @@ SUBJECT_OUT = "two"
 
 
 def classify(metadata, image):
-    """Classify image based on metadata and image pixels. Returns class_id (0-9) or -1."""
-    num_lines = metadata["num_lines"]
-    thickness = metadata["thickness"]
-    lines = metadata["lines"]
-    centered = metadata["centered"]
+    """Classify image based on metadata and image pixels.
 
-    max_length = max((l["total_length"] for l in lines), default=0)
-    total_segments = sum(l["num_segments"] for l in lines)
+    Only classes 1 (one long line) and 2 (two or more long lines) are
+    produced; class 0 comes from generate_class_0.py. Everything else
+    returns -1 (skipped, not saved as a class).
+    """
+    num_lines = metadata["num_lines"]
+    lines = metadata["lines"]
 
     num_long_lines = 0
     num_points = 0
@@ -35,26 +35,7 @@ def classify(metadata, image):
         if line["total_length"] <= 7:
             num_points += 1
         elif line["total_length"] >= 22:
-            num_long_lines +=1
-
-    #binary = (image == 0).astype(int)
-    #labeled, num_features = ndimage.label(binary)
-
-    #has_hole = False
-    ## Check if any black component doesn't touch the border
-    #for i in range(1, num_features + 1):
-    #    component = labeled == i
-    #    if np.sum(component) < 9:
-    #        continue
-    #    touches_border = (
-    #        component[0, :].any() or
-    #        component[-1, :].any() or
-    #        component[:, 0].any() or
-    #        component[:, -1].any()
-    #    )
-    #    if not touches_border:
-    #        has_hole = True
-    #        break  # Found a hole
+            num_long_lines += 1
 
     # Label connected components of white pixels
     binary = (image > 127).astype(int)
@@ -68,55 +49,14 @@ def classify(metadata, image):
     large_threshold = image_size * 0.2
     has_large_white_area = np.any(sizes > large_threshold)
 
-
-    # Class 0: centered dot
-    if num_points == 1 and num_lines == 1:
-        return 0
-
-    # Class 1: 2 or more dots
-    if num_points >= 1 and num_lines - num_points == 0:
-        return -1
-
-    # one lines
+    # Class 1: one long line
     if num_points == 0 and num_long_lines == 1 and not has_large_white_area:
         return 1
 
+    # Class 2: two or more long lines
     if num_points == 0 and num_long_lines >= 2 and not has_large_white_area:
         return 2
 
-    ## Class 2: one line
-    #if not has_hole and num_points <= 4 and num_straight_lines <= 2  and (num_lines - num_points - num_straight_lines) <= 0:
-    #    return 2
-
-    ## Class 3: one line and one or more dots
-    #if num_points > 0 and num_points <= 3 and num_straight_lines == 1 and (num_lines - num_points - num_straight_lines) <= 0:
-    #    return 3
-
-    ##4. two lines, orthogonal, crossing and not crossing
-    #if num_points <= 2 and num_straight_lines >= 2 and num_straight_lines <= 3 and (max(straight_lines_slopes_max) - min(straight_lines_slopes_min)) > 0.3 and (num_lines - num_points - num_straight_lines) <= 0:
-    #    return 4
-     
-    ## Class 5: one hole/ring in the image
-    #if has_hole:
-    #    return 2
-     
-    ## Class 6. more than 2 clear lines
-    #if num_points <= 7 and num_straight_lines > 2 and not has_large_white_area and (num_lines - num_points - num_straight_lines) <= 0:
-    #    return 4
-     
-    # Class 7: complex structure, large white area
-    #if has_large_white_area and (num_lines - num_points - num_straight_lines) <= 4:
-    #    return 7
-
-    ## Class 8: complex structure, very assymetric, no large white area
-    #if num_points > 3 and num_straight_lines == 0 and num_lines > 5 and not has_large_white_area:
-    #    return 3
-
-    ## Class 9: complex structure, very regular, no large white area
-    ##if num_points <= 3 and num_straight_lines >= 3 and not has_large_white_area and (num_lines - num_points - num_straight_lines) <= 4:
-    #if num_points <= 2 and num_straight_lines >= 3 and not has_large_white_area and (num_lines - num_points - num_straight_lines) <= 2:
-    #    return 9
-     
     return -1
 
 

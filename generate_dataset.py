@@ -17,13 +17,16 @@ from classifier import classify
 DEFAULT_DATA_DIR = "data"
 DEFAULT_TEST_DATA_DIR = "test_data"
 DEFAULT_IMAGES_PER_CLASS = 7000
-NUM_CLASSES = 3 # unclassified samples are skipped, not saved as a class
+# Only classes 1 and 2 are generated; class 0 comes from generate_class_0.py
+# and unclassified samples are skipped (label -1), not saved as a class.
+CLASS_IDS = (1, 2)
+NUM_CLASSES = len(CLASS_IDS)
 
 
 def count_existing(data_dir):
     """Count existing images per class directory."""
     counts = {}
-    for c in range(NUM_CLASSES):
+    for c in CLASS_IDS:
         class_dir = os.path.join(data_dir, f"class_{c}")
         if os.path.exists(class_dir):
             counts[c] = len([f for f in os.listdir(class_dir) if f.endswith(".npy")])
@@ -35,7 +38,7 @@ def count_existing(data_dir):
 def generate_to_dir(data_dir, images_per_class, world):
     """Generate images into data_dir until each class has images_per_class images."""
     os.makedirs(data_dir, exist_ok=True)
-    for c in range(NUM_CLASSES):
+    for c in CLASS_IDS:
         os.makedirs(os.path.join(data_dir, f"class_{c}"), exist_ok=True)
 
     counts = count_existing(data_dir)
@@ -43,7 +46,7 @@ def generate_to_dir(data_dir, images_per_class, world):
 
     total = 0
     skipped = 0
-    while min(counts[c] for c in range(NUM_CLASSES)) < images_per_class:
+    while min(counts[c] for c in CLASS_IDS) < images_per_class:
         grid, metadata = world.get_random_image()
         label = classify(metadata, grid)
 
