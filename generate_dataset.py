@@ -11,8 +11,7 @@ Usage:
 import argparse
 import os
 import numpy as np
-from src.utils import postprocess
-from publisher import World
+from src.world import World
 from classifier import classify
 
 DEFAULT_DATA_DIR = "data"
@@ -46,7 +45,6 @@ def generate_to_dir(data_dir, images_per_class, world):
     skipped = 0
     while min(counts[c] for c in range(NUM_CLASSES)) < images_per_class:
         grid, metadata = world.get_random_image()
-        grid, metadata["centered"] = postprocess(grid)
         label = classify(metadata, grid)
 
         if label == -1:
